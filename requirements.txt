@@ -1,0 +1,32 @@
+# Nota: se usan versiones minimas (>=) en vez de versiones exactas fijas (==)
+# a proposito. Con versiones exactas viejas, pip a veces intenta compilar el
+# paquete desde el codigo fuente si no hay una version precompilada para tu
+# Python/SO — y eso requiere un compilador de C que Windows no trae instalado
+# por defecto. Con >= dejamos que pip elija la version mas nueva compatible,
+# que casi siempre viene precompilada.
+
+# --- Core ---
+python-dotenv>=1.0.1
+requests>=2.32.3
+numpy>=1.26.4
+
+# --- Embeddings locales ---
+sentence-transformers>=3.0.1
+torch>=2.3.1
+
+# --- Embeddings/LLM vía API (opcional según EMBEDDING_PROVIDER / LLM_PROVIDER) ---
+anthropic>=0.34.2
+openai>=1.51.0
+voyageai>=0.2.3
+
+# --- Vector store (Chroma, embebido: sin servidor, sin Docker) ---
+chromadb>=0.5.5
+
+# --- API y UI ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.6
+pydantic>=2.9.2
+streamlit>=1.38.0
+
+# --- Testing ---
+pytest>=8.3.3
