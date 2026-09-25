@@ -66,7 +66,13 @@ class OpenAIEmbedder(Embedder):
 
 class VoyageEmbedder(Embedder):
     """Embeddings vía Voyage AI. Requiere VOYAGE_API_KEY. Buena opción si
-    querés quedarte en un ecosistema afín a Anthropic para todo el stack."""
+    querés quedarte en un ecosistema afín a Anthropic para todo el stack.
+
+    Nota: el plan gratis de Voyage SIN tarjeta cargada tiene un límite muy
+    bajo (3 requests/min, 10K tokens/min). Por eso acá reintentamos con
+    espera en vez de fallar directo ante un RateLimitError — indexar el
+    corpus completo tarda más (15-20 min), pero no hace falta pagar nada.
+    """
 
     def __init__(self, model_name: str = "voyage-3.5"):
         import voyageai
@@ -75,9 +81,25 @@ class VoyageEmbedder(Embedder):
         self.client = voyageai.Client()
 
     def encode(self, texts: list[str]) -> np.ndarray:
-        result = self.client.embed(texts, model=self.model_name, input_type="document")
-        arr = np.array(result.embeddings, dtype="float32")
-        return arr / np.linalg.norm(arr, axis=1, keepdims=True)
+        import time
+
+        import voyageai
+
+        max_retries = 10
+        wait_seconds = 22  # un poco más de 60/3, para no volver a pisar el límite de 3 RPM
+
+        for attempt in range(max_retries):
+            try:
+                result = self.client.embed(texts, model=self.model_name, input_type="document")
+                arr = np.array(result.embeddings, dtype="float32")
+                return arr / np.linalg.norm(arr, axis=1, keepdims=True)
+            except voyageai.error.RateLimitError:
+                if attempt == max_retries - 1:
+                    raise
+                print(f"  [rate limit de Voyage] esperando {wait_seconds}s antes de reintentar...")
+                time.sleep(wait_seconds)
+
+        raise RuntimeError("No se pudo generar el embedding tras varios reintentos")
 
 
 def get_embedder() -> Embedder:

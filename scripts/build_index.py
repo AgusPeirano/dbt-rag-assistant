@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.chunking import chunk_documents
+from src.config import settings
 from src.embeddings import get_embedder
 from src.ingestion import fetch_all_documents
 from src.vectorstore import ChromaVectorStore
@@ -50,11 +51,21 @@ def build_index(limit: int | None = None, rebuild: bool = False, batch_size: int
     if rebuild:
         store.clear()
 
+    # El plan gratis de Voyage (sin tarjeta) tiene un límite bajo de
+    # requests/min y tokens/min — pausamos entre lotes para no chocar
+    # contra ese límite en cada llamada. Con embeddings locales no hace
+    # falta (no hay límite de API), así que ahí no pausamos nada.
+    is_rate_limited_api = settings.embedding_provider.lower() in ("voyage", "openai")
+    if is_rate_limited_api and batch_size > 20:
+        batch_size = 20  # lotes más chicos = menos tokens por request, más margen
+
     for i in range(0, len(chunks), batch_size):
         batch = chunks[i : i + batch_size]
         vectors = embedder.encode([c.text for c in batch])
         store.insert_chunks(batch, vectors)
         log(f"  ...{min(i + batch_size, len(chunks))}/{len(chunks)} chunks indexados")
+        if is_rate_limited_api and i + batch_size < len(chunks):
+            time.sleep(21)  # ritmo seguro para 3 requests/min
 
     log("4/4 · Listo.")
     log(f"Total en el índice: {store.count()} chunks")
